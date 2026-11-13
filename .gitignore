@@ -1,0 +1,22 @@
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+
+# Secrets
+.env
+
+# Runtime data
+*.db
+*.db-journal
+logs/
+temp/*
+!temp/.gitkeep
+data/
+
+# IDE
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/shelf/

@@ -1,0 +1,46 @@
+<style>
+[[@css]]
+.s{flex:none;width:38px;height:38px;border-radius:11px;display:flex;align-items:center;justify-content:center;color:#fff;background:#8e8e93}
+.sw{background:#8e8e93}.sp{background:#3e88f7}.sd{background:#30b45c}.sf{background:#f2584b}.sc{background:#8e8e93}
+.br{position:relative;height:6px;border-radius:3px;background:var(--tg-theme-secondary-bg-color);overflow:hidden;margin:4px 0 2px}
+.br i{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:var(--tg-theme-button-color);transition:width .4s}
+.in i{width:35%;animation:mv 1.3s ease-in-out infinite}
+@keyframes mv{from{transform:translateX(-100%)}to{transform:translateX(290%)}}
+@media (prefers-reduced-motion:reduce){.in i{animation:none;width:100%}}
+.rw{display:flex;justify-content:space-between;font-size:.84em;margin-top:8px}
+.rw b{font-weight:600;font-variant-numeric:tabular-nums}
+.g{background:#30b45c}
+.big{margin-top:12px;font-size:1.25em;font-weight:700;font-variant-numeric:tabular-nums}
+.ok{color:#30b45c}
+.ac{display:flex;gap:8px;margin-top:12px}
+.ac button{flex:1;margin:0;padding:10px 4px;text-align:center}
+#cp,#ac,#pr,#x{display:none}
+</style>
+<div class="hd"><div class="s" id="ic"></div><div><div class="ti" id="op"></div><div class="sb" id="sl"></div></div></div>
+<div id="pr"><div class="br" id="bar"><i id="bi"></i></div><div class="hn" id="pt"></div></div>
+<div id="cp" class="cd"></div>
+<button class="pb" id="x" onclick="ask('x')" style="background:var(--tg-theme-secondary-bg-color);color:var(--tg-theme-destructive-text-color)">[[t_cancel]]</button>
+<div class="ac" id="ac"><button class="pb" onclick="ask('rp')">[[t_rp]]</button><button class="cd" onclick="ask('mn')">[[t_mn]]</button></div>
+<div class="ms" id="ms"></div>
+<script>
+[[@js]]
+var S={w:['[[js:st_w]]','…'],p:['[[js:st_p]]','→'],d:['[[js:st_d]]','✓'],f:['[[js:st_f]]','!'],c:['[[js:st_c]]','×']};
+function show(i,v){$(i).style.display=v?'block':'none';}
+function row(c,l,v,w,g){var r=el('div','rw');r.appendChild(el('span','hn',l));r.appendChild(el('b','',v));c.appendChild(r);
+var b=el('div','br'),i=el('i',g?'g':'');i.style.width=Math.max(2,Math.min(100,w))+'%';b.appendChild(i);c.appendChild(b);}
+function draw(){var d=D(),s=d.s||'w',a=+d.a||0,b=+d.b||0,c=$('cp');
+$('ic').className='s s'+s;$('ic').textContent=S[s][1];$('op').textContent=d.o||'';
+var sl=S[s][0];if(s=='w'&&d.q)sl+=' · #'+d.q;if(s=='d'&&d.t!=null)sl+=' · '+d.t+' [[js:u_s]]';$('sl').textContent=sl;
+show('pr',s=='w'||s=='p');show('x',s=='w'||s=='p');show('ac',s=='d'||s=='f'||s=='c');
+var p=+d.p;$('bar').className='br'+(s=='p'&&!(p>=0)?' in':'');$('bi').style.width=s=='p'&&p>=0?p+'%':(s=='w'?'0%':'');
+$('pt').textContent=s=='p'&&p>=0?p+'%':'';
+c.replaceChildren();show('cp',s=='d'&&a>0||s=='f');
+if(s=='f'){c.appendChild(el('div','er',d.e||'[[js:e_fail]]'));return;}
+if(s!='d'||!a)return;
+row(c,'[[js:t_orig]]',fs(a),100,0);row(c,'[[js:t_res]]',fs(b),b/a*100,1);
+var pc=Math.round((a-b)/a*1000)/10,big=el('div','big '+(b<a?'ok':'er'));
+big.textContent=b<a?'−'+pc+'% · [[js:t_saved]] '+fs(a-b):'+'+(-pc)+'% · [[js:t_bigger]]';
+if(d.c)c.appendChild(big);if(d.x)c.appendChild(el('div','hn',d.x));}
+if(W)W.onEvent('chatDataChanged',draw);
+draw();
+</script>

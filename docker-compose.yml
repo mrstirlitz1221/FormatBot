@@ -1,0 +1,16 @@
+services:
+  formatbot:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: sqlite:////app/data/formatbot.db
+      TEMP_DIR: /app/temp
+      LOG_DIR: /app/data/logs
+    volumes:
+      - formatbot-data:/app/data
+    tmpfs:
+      - /app/temp:size=2g,uid=1000
+
+volumes:
+  formatbot-data:

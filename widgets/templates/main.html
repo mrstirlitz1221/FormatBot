@@ -1,0 +1,29 @@
+<style>
+[[@css]]
+.mc{display:flex;flex-direction:column;align-items:flex-start;gap:6px;min-height:104px}
+.ic{width:34px;height:34px;border-radius:10px;display:flex;align-items:center;justify-content:center;color:#fff}
+.c1{background:#3e88f7}.c2{background:#30b45c}.c3{background:#f2584b}.c4{background:#a05ad8}
+.mt{font-weight:600;font-size:.95em}
+.md{color:var(--tg-theme-hint-color);font-size:.78em;line-height:1.3}
+.rw{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-top:8px}
+.sm{display:flex;align-items:center;justify-content:center;gap:5px;padding:9px 2px;font-size:.85em;text-align:center}
+.sm svg{width:16px;height:16px;flex:none}
+</style>
+<div class="hd"><div class="lg"><svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 14l2 2 4-4"/></svg></div>
+<div><div class="ti">FormatBot</div><div class="sb" id="st">Universal File Toolkit</div></div></div>
+<div class="gr">
+<button class="cd mc" onclick="ask('cv')"><span class="ic c1"><svg viewBox="0 0 24 24"><path d="M4 8h14l-4-4M20 16H6l4 4"/></svg></span><span class="mt">[[m_cv]]</span><span class="md">[[m_cv_d]]</span></button>
+<button class="cd mc" onclick="ask('cz')"><span class="ic c2"><svg viewBox="0 0 24 24"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/></svg></span><span class="mt">[[m_cz]]</span><span class="md">[[m_cz_d]]</span></button>
+<button class="cd mc" onclick="ask('pt')"><span class="ic c3"><svg viewBox="0 0 24 24"><path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5M9 13h6M9 17h4"/></svg></span><span class="mt">[[m_pt]]</span><span class="md">[[m_pt_d]]</span></button>
+<button class="cd mc" onclick="ask('it')"><span class="ic c4"><svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 16l5-5 5 5 3-3 5 5"/><circle cx="15.5" cy="8.5" r="1.5"/></svg></span><span class="mt">[[m_it]]</span><span class="md">[[m_it_d]]</span></button>
+</div>
+<div class="rw">
+<button class="cd sm" onclick="ask('hi')"><svg viewBox="0 0 24 24"><path d="M12 7v5l3 2M3.5 12a8.5 8.5 0 1 0 2.6-6.1L3 9M3 4v5h5"/></svg>[[m_hi]]</button>
+<button class="cd sm" onclick="ask('se')"><svg viewBox="0 0 24 24"><path d="M4 7h9M17 7h3M4 17h3M11 17h9"/><circle cx="15" cy="7" r="2"/><circle cx="9" cy="17" r="2"/></svg>[[m_se]]</button>
+<button class="cd sm" onclick="ask('ab')"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg>[[m_ab]]</button>
+</div>
+<div class="ms" id="ms"></div>
+<script>
+[[@js]]
+var s=D();if(s.n){$('st').textContent='[[js:m_done]] '+s.n+(s.s?' · [[js:m_saved]] '+fs(s.s):'');}
+</script>

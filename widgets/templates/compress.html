@@ -1,0 +1,32 @@
+<style>
+[[@css]]
+.md{display:flex;align-items:center;gap:10px;margin-top:6px}
+.md b{display:block;font-weight:600;font-size:.93em}
+.md i{display:block;font-style:normal;color:var(--tg-theme-hint-color);font-size:.78em;margin-top:1px}
+.rd{flex:none;width:18px;height:18px;border-radius:50%;box-shadow:inset 0 0 0 2px var(--tg-theme-hint-color)}
+.sel .rd{box-shadow:inset 0 0 0 5px var(--tg-theme-button-color)}
+#cu{display:none}
+.sp{display:flex;align-items:center;gap:8px}
+.sp button{width:44px;padding:8px 0}
+.sp div{flex:1;text-align:center;font-weight:600;font-size:1.1em;font-variant-numeric:tabular-nums}
+</style>
+<div class="hd"><div class="lg"><svg viewBox="0 0 24 24"><path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/></svg></div>
+<div><div class="ti">[[cz_t]]</div><div class="sb" id="sb"></div></div></div>
+<div id="ml"></div>
+<div id="cu"><div class="lb">[[q_t]]</div>
+<div class="sp"><button class="ch" onclick="st(-5)">&minus;</button><div id="qv"></div><button class="ch" onclick="st(5)">+</button></div>
+<div class="lb">[[cz_res]]</div><div class="g4" id="rl"></div></div>
+<button class="pb" onclick="run()">[[cz_go]]</button>
+<div class="ms" id="ms"></div>
+<script>
+[[@js]]
+var d=D(),m=d.d||'bal',q=d.q||75,r=d.r&&d.r[0]?d.r[0][0]:'o';
+$('sb').textContent=(d.n||'')+' · '+fs(d.z);
+function st(x){q=Math.max(10,Math.min(100,q+x));draw();}
+function draw(){var l=$('ml'),R=$('rl');l.replaceChildren();R.replaceChildren();
+(d.m||[]).forEach(function(x){var b=el('button','cd md'+(x[0]==m?' sel':''));b.appendChild(el('span','rd'));var t=el('span');t.appendChild(el('b','',x[1]));t.appendChild(el('i','',x[2]));b.appendChild(t);b.onclick=function(){m=x[0];draw();};l.appendChild(b);});
+(d.r||[]).forEach(function(x){var b=el('button','ch'+(x[0]==r?' on':''),x[1]);b.onclick=function(){r=x[0];draw();};R.appendChild(b);});
+$('cu').style.display=m=='cus'?'block':'none';$('qv').textContent=q;}
+function run(){ask(m=='cus'?'go:cus:'+q+':'+r:'go:'+m);}
+draw();
+</script>

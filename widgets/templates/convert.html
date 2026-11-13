@@ -1,0 +1,26 @@
+<style>
+[[@css]]
+#qs{display:none}
+.qc span{display:block;font-size:.72em;font-weight:400;color:inherit}
+</style>
+<div class="hd"><div class="lg"><svg viewBox="0 0 24 24"><path d="M4 8h14l-4-4M20 16H6l4 4"/></svg></div>
+<div><div class="ti">[[cv_t]]</div><div class="sb" id="sb"></div></div></div>
+<div class="lb">[[cv_to]]</div>
+<div class="g4" id="fm"></div>
+<div id="qs"><div class="lb">[[q_t]]</div><div class="g4" id="ql"></div></div>
+<button class="pb" id="go" disabled onclick="run()">[[cv_pick]]</button>
+<div class="ms" id="ms"></div>
+<script>
+[[@js]]
+var d=D(),f='',q=d.q||85,Q=[[95,'[[js:q_max]]'],[85,'[[js:q_hi]]'],[70,'[[js:q_md]]'],[50,'[[js:q_lo]]']];
+$('sb').textContent=(d.n||'')+' · '+String(d.f||'').toUpperCase();
+function lossy(){return (d.l||[]).indexOf(f)>=0;}
+function draw(){var m=$('fm'),l=$('ql');m.replaceChildren();l.replaceChildren();
+(d.o||[]).forEach(function(x){var b=el('button','ch'+(x==f?' on':''),x.toUpperCase());b.onclick=function(){f=x;draw();};m.appendChild(b);});
+Q.forEach(function(x){var b=el('button','ch qc'+(x[0]==q?' on':''),x[0]);b.appendChild(el('span','',x[1]));b.onclick=function(){q=x[0];draw();};l.appendChild(b);});
+$('qs').style.display=lossy()?'block':'none';
+var g=$('go');g.disabled=!f;g.textContent=f?'[[js:cv_go]] '+f.toUpperCase():'[[js:cv_pick]]';}
+function run(){if(f)ask('go:'+f+(lossy()?':'+q:''));}
+if(Q.every(function(x){return x[0]!=q;}))q=85;
+draw();
+</script>

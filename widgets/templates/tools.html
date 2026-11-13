@@ -1,0 +1,26 @@
+<style>
+[[@css]]
+.tr{display:flex;align-items:center;gap:10px;margin-top:6px;padding:9px 12px}
+.tr svg{flex:none;color:var(--tg-theme-button-color)}
+.tr b{flex:1;font-weight:500;font-size:.93em}
+.tr i{font-style:normal;color:var(--tg-theme-hint-color)}
+.op{display:flex;flex-wrap:wrap;gap:6px;padding:8px 0 2px}
+.op button{flex:1 0 22%;padding:8px 6px}
+</style>
+<div class="hd"><div class="lg"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a4 4 0 0 0-5.4 5.4L3 18l3 3 6.3-6.3a4 4 0 0 0 5.4-5.4l-2.5 2.5-2.4-.6-.6-2.4z"/></svg></div>
+<div><div class="ti">[[=title]]</div><div class="sb" id="sb"></div></div></div>
+<div id="tl"></div>
+<div class="ms" id="ms"></div>
+<script>
+[[@js]]
+var P={rs:'M4 14v6h6M20 10V4h-6M4 20l7-7M20 4l-7 7',cr:'M6 2v14a2 2 0 0 0 2 2h14M2 6h14a2 2 0 0 1 2 2v14',ro:'M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7',gr:'M12 3a9 9 0 1 0 0 18zM12 3a9 9 0 0 1 0 18',pd:'M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5',mt:'M4 4l16 16M9 5h9a2 2 0 0 1 2 2v9M18 20H6a2 2 0 0 1-2-2V8',op:'M13 2L4 14h7l-1 8 9-12h-7z',mg:'M8 6h8M8 12h8M8 18h8M4 6v12',sp:'M6 3v18M18 3v18M10 12h4',im:'M3 5h18v14H3zM3 16l5-5 5 5 3-3 5 5',tx:'M5 6h14M12 6v13M9 19h6',dl:'M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3',ex:'M12 3v12M7 10l5 5 5-5M5 21h14',rd:'M7 4v16M3 8l4-4 4 4M17 20V4M13 16l4 4 4-4',au:'M9 18V5l11-2v13M9 18a3 3 0 1 1-6 0 3 3 0 0 1 6 0zM20 16a3 3 0 1 1-6 0 3 3 0 0 1 6 0z',fr:'M4 4h16v16H4zM4 9h16M9 4v16',tm:'M6 3a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM6 15a3 3 0 1 0 0 6 3 3 0 0 0 0-6zM8.1 8.1L20 20M14.5 9.5L20 4',gf:'M4 5h16v14H4zM9 10H7v4h2v-2M12 10v4M15 14v-4h2M15 12h1.5'};
+var d=D(),o='';
+$('sb').textContent=d.n||'';
+function ic(k){return '<svg viewBox="0 0 24 24"><path d="'+(P[k]||P.op)+'"/></svg>';}
+function draw(){var l=$('tl');l.replaceChildren();
+(d.t||[]).forEach(function(t){var h=t[3]&&t[3].length,b=el('button','cd tr'+(o==t[0]?' sel':''));
+b.innerHTML=ic(t[2]);b.appendChild(el('b','',t[1]));if(h)b.appendChild(el('i','',o==t[0]?'−':'+'));
+b.onclick=function(){if(h){o=o==t[0]?'':t[0];draw();}else ask('t:'+t[0]);};l.appendChild(b);
+if(h&&o==t[0]){var w=el('div','op');t[3].forEach(function(x){var c=el('button','ch',x[1]);c.onclick=function(){ask('t:'+t[0]+':'+x[0]);};w.appendChild(c);});l.appendChild(w);}});}
+draw();
+</script>
