@@ -55,8 +55,17 @@ def output_name(original: str, extension: str, request: OperationRequest) -> str
     return sanitize_filename(f"{stem}.{extension}")
 
 
+@dataclass(frozen=True)
+class ExtraFile:
+    telegram_file_id: str
+    name: str
+    kind: str
+    extension: str
+    size: int
+
+
 async def start_operation(bot: Bot, app: AppContext, user: User, chat_id: int, record: UploadedFile,
-                          request: OperationRequest) -> ws.ActionAnswer:
+                          request: OperationRequest, extras: list[UploadedFile] | None = None) -> ws.ActionAnswer:
     lang = user.language
     processor = get_processor(record.kind)
     if processor is None:
@@ -79,6 +88,7 @@ async def start_operation(bot: Bot, app: AppContext, user: User, chat_id: int, r
         bot=bot, app=app, chat_id=chat_id, task_id=task_id, view=view, label=label, request=request,
         user=UserSnapshot(user.id, user.telegram_id, lang, user.notifications),
         file=ctx, telegram_file_id=record.telegram_file_id,
+        extras=[ExtraFile(e.telegram_file_id, e.file_name, e.kind, e.extension, e.size) for e in extras or []],
     )
     try:
         position = app.tasks.submit(task_id, user.id, TaskHooks(run=job.run, on_start=job.on_start,
@@ -94,7 +104,8 @@ async def start_operation(bot: Bot, app: AppContext, user: User, chat_id: int, r
 
 class OperationJob:
     def __init__(self, *, bot: Bot, app: AppContext, chat_id: int, task_id: int, view: TaskView, label: str,
-                 request: OperationRequest, user: UserSnapshot, file: FileContext, telegram_file_id: str) -> None:
+                 request: OperationRequest, user: UserSnapshot, file: FileContext, telegram_file_id: str,
+                 extras: list[ExtraFile] | None = None) -> None:
         self.bot = bot
         self.app = app
         self.chat_id = chat_id
@@ -105,6 +116,7 @@ class OperationJob:
         self.user = user
         self.file = file
         self.telegram_file_id = telegram_file_id
+        self.extras = extras or []
         self.lang = user.language
         # filled by run()
         self.output_size: int | None = None
@@ -130,21 +142,21 @@ class OperationJob:
             source = workspace.input_path(self.file.extension)
             if self.file.size > self.app.settings.download_limit_bytes:
                 raise OperationError("file_too_big")
-            try:
-                await self.bot.download(self.telegram_file_id, destination=source, timeout=DOWNLOAD_TIMEOUT_SEC)
-            except (TelegramAPIError, OSError, asyncio.TimeoutError) as exc:
-                logger.warning("Task %s: download failed: %s", self.task_id, exc)
-                raise OperationError("download_failed") from exc
-
-            info = await asyncio.to_thread(detect_file, source, self.file.name)
-            if info.error or info.kind != self.file.kind or info.extension != self.file.extension:
-                raise OperationError(info.error or "type_changed")
+            await self._fetch(self.telegram_file_id, source, self.file.name, self.file.kind, self.file.extension)
+            extra_sources = []
+            for index, extra in enumerate(self.extras, start=1):
+                if extra.size > self.app.settings.download_limit_bytes:
+                    raise OperationError("file_too_big")
+                path = workspace.input_path(extra.extension, index)
+                await self._fetch(extra.telegram_file_id, path, extra.name, extra.kind, extra.extension)
+                extra_sources.append(path)
 
             processor = get_processor(self.file.kind)
             if processor is None:
                 raise OperationError("bad_params")
             started = time.monotonic()
-            result = await processor.run(self.file, self.request, source, workspace, self._progress, self.lang)
+            result = await processor.run(self.file, self.request, source, workspace, self._progress, self.lang,
+                                         extra_sources)
             self.elapsed = time.monotonic() - started
 
             size = result.path.stat().st_size if result.path.exists() else 0
@@ -177,6 +189,17 @@ class OperationJob:
             )
         finally:
             workspace.cleanup()
+
+    async def _fetch(self, telegram_file_id: str, path, name: str, kind: str, extension: str) -> None:  # noqa: ANN001
+        """Download a file into the workspace and check it is still what was detected at upload."""
+        try:
+            await self.bot.download(telegram_file_id, destination=path, timeout=DOWNLOAD_TIMEOUT_SEC)
+        except (TelegramAPIError, OSError, asyncio.TimeoutError) as exc:
+            logger.warning("Task %s: download failed: %s", self.task_id, exc)
+            raise OperationError("download_failed") from exc
+        info = await asyncio.to_thread(detect_file, path, name)
+        if info.error or info.kind != kind or info.extension != extension:
+            raise OperationError(info.error or "type_changed")
 
     def _caption(self, size: int) -> str:
         elapsed = f"{self.elapsed or 0:.1f}"

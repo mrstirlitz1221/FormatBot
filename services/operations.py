@@ -48,7 +48,10 @@ class ToolSpec:
     label: str
     icon: str
     options: list[tuple[str, str]] = field(default_factory=list)  # (option id, label)
-    input_options: frozenset[str] = frozenset()  # options that ask for text in the chat
+    input_options: frozenset[str] = frozenset()    # options that ask for text in the chat
+    collect_options: frozenset[str] = frozenset()  # options that collect more files in the chat
+    collect: bool = False                          # the tool itself (no options) collects files
+    input: bool = False                            # the tool itself (no options) asks for text
 
 
 @dataclass(frozen=True)
@@ -111,7 +114,22 @@ class Processor(ABC):
 
     @abstractmethod
     async def run(self, file: FileContext, request: OperationRequest, source: Path,
-                  workspace: TaskWorkspace, progress: ProgressCallback, lang: str) -> OperationResult: ...
+                  workspace: TaskWorkspace, progress: ProgressCallback, lang: str,
+                  extra_sources: list[Path]) -> OperationResult: ...
+
+    # -------------------------------------------------------------- chat input (optional)
+
+    def input_prompt(self, file: FileContext, tool: str, lang: str) -> str | None:
+        """Text asking for parameters of a tool option that needs typed input."""
+        return None
+
+    def parse_text_input(self, file: FileContext, tool: str, text: str) -> dict[str, Any]:
+        """Validate typed parameters; returns request params. Raises OperationError."""
+        raise OperationError("bad_params")
+
+    def collect_kind(self, tool: str) -> str | None:
+        """Kind of files a collecting tool accepts (e.g. 'pdf' for merge)."""
+        return None
 
     # -------------------------------------------------------------- parsing (shared)
 
@@ -151,8 +169,8 @@ class Processor(ABC):
             raise OperationError("bad_params")
         return OperationRequest(CATEGORY_COMPRESS, mode, {})
 
-    def parse_tool(self, file: FileContext, data: str, lang: str) -> tuple[OperationRequest, bool]:
-        """Returns (request, needs_text_input)."""
+    def parse_tool(self, file: FileContext, data: str, lang: str) -> tuple[OperationRequest, str | None]:
+        """Returns (request, interaction): interaction is None, 'input' or 'collect'."""
         parts = data.split(":")
         if len(parts) not in (2, 3) or parts[0] != "t":
             raise OperationError("bad_params")
@@ -167,7 +185,11 @@ class Processor(ABC):
         if not tool.options and option is not None:
             raise OperationError("bad_params")
         request = OperationRequest(CATEGORY_TOOL, tool.id, {"option": option})
-        return request, option in tool.input_options
+        if option in tool.input_options or (tool.input and option is None):
+            return request, "input"
+        if option in tool.collect_options or (tool.collect and option is None):
+            return request, "collect"
+        return request, None
 
 
 def _int_in(raw: str, lo: int, hi: int) -> int:

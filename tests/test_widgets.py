@@ -166,3 +166,20 @@ async def test_middleware_routes_widget_updates_only():
     message_update = Update.model_validate({"update_id": 2, "message": {
         "message_id": 1, "date": 0, "chat": {"id": 1, "type": "private"}, "text": "hi"}})
     assert await middleware(next_handler, message_update, {}) == "passed"
+
+
+def test_pdf_and_document_states_fit():
+    from services.document_processor import DocumentProcessor, PdfProcessor
+
+    pdf_file = FileContext("pdf", "pdf", "очень_длинное_имя_документа_" * 5 + ".pdf", 10_000, {"pages": 40})
+    docx = FileContext("document", "docx", "отчёт.docx", 10_000, {})
+    for lang in LANGS:
+        pdf_processor, doc_processor = PdfProcessor(), DocumentProcessor()
+        states = [
+            ws.tools_state(pdf_file, pdf_processor.tools(pdf_file, lang)),
+            ws.compress_state(pdf_file, pdf_processor.compress_spec(pdf_file, lang, 75, "bal")),
+            ws.convert_state(pdf_file, pdf_processor.convert_targets(pdf_file), set(), 85),
+            ws.compress_state(docx, doc_processor.compress_spec(docx, lang, 75, "max")),
+        ]
+        for state in states:
+            assert len(ws.dump(state).encode()) <= 1024

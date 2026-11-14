@@ -60,9 +60,23 @@ TaskManager (семафор, лимит на пользователя, тайм�
   на каждый тип файла один `Processor` (convert_targets, compress_spec, tools, parse_*, run).
 - Файлы не хранятся: в БД только `file_id` Telegram, файл скачивается заново на каждую задачу.
 
-## Как добавить тип файла (этапы 5–6)
+## Этап 5 (PDF и документы)
 
-1. `services/pdf_processor.py` / `document_processor.py` / `media_processor.py` — подкласс `Processor`,
+- `services/pdf_service.py` — PyMuPDF: merge/split/render/text/rotate/select, `compress_pdf`
+  (`rewrite_images` + `garbage=4`, deflate, object streams, без метаданных), собственный `pdf_to_docx`.
+- `services/document_service.py` — LibreOffice (`--convert-to` с явными фильтрами, профиль
+  `-env:UserInstallation` в папке задачи), встроенные конвертации через `pymupdf.Story` и python-docx,
+  `compress_office` для ZIP-контейнеров (порядок и имена частей сохраняются, `mimetype` ODF — первым и без сжатия).
+- `services/document_processor.py` — `PdfProcessor`, `DocumentProcessor`.
+- `services/external_tools.py` — `run_process` (только список аргументов, таймаут, kill дерева процессов),
+  `set_tools()` вызывается в `bot.py` с путями из конфигурации.
+- Взаимодействие инструментов: `ToolSpec.input` / `input_options` → `ToolInput` (текст в чате, `Processor.parse_text_input`);
+  `ToolSpec.collect` / `collect_options` → `CollectFiles` (досылка файлов, кнопки `c:go` / `c:x`,
+  `start_operation(..., extras)` скачивает их в `input_1..N`).
+
+## Как добавить тип файла (этап 6)
+
+1. `services/media_processor.py` — подкласс `Processor`,
    `register(...)` в конце модуля, импорт в `bot.py` и `tests/conftest.py`.
 2. Внешние программы — только `asyncio.create_subprocess_exec` со списком аргументов, таймаут, `kill()` при
    отмене, пути из `settings.tools`; если программы нет — не показывать операции (`convert_targets` → `[]`).

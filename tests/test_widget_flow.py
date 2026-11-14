@@ -293,3 +293,137 @@ async def test_too_big_and_broken_files(env, samples):
     await feed(env, u.document("B1", "broken.png", 200))
     assert "повреждён" in env.fake.all("editMessageText")[-1]["text"]
     assert not list(env.settings.temp_dir.glob("task_*"))
+
+
+# ----------------------------------------------------------------------------- stage 5: PDF
+
+
+async def upload(env, u: Updates, path, file_id: str, name: str) -> dict:
+    data = path.read_bytes()
+    env.fake.files[file_id] = data
+    await feed(env, u.document(file_id, name, len(data)))
+    return widget_of_type(env, name)
+
+
+async def test_pdf_card_and_delete_pages_via_chat(env, samples):
+    import pymupdf
+
+    u = Updates()
+    await feed(env, u.text("/start"))
+    card = await upload(env, u, samples["pdf"], "P1", "doc.pdf")
+    state = json.loads(card["chat_data"])
+    assert state["k"] == "pdf" and state["p"] == 3 and state["a"] == ["cv", "cz", "tl"]
+
+    await feed(env, u.widget(card["_mid"], "tl"))
+    tools = widget_of_type(env, "Инструменты")
+    tool_ids = [tool[0] for tool in json.loads(tools["chat_data"])["t"]]
+    assert tool_ids == ["mg", "sp", "im", "tx", "ro", "dl", "ex", "rd"]
+
+    await feed(env, u.widget(tools["_mid"], "t:dl"))
+    assert "Всего страниц: 3" in env.fake.last("sendMessage")["text"]
+    await feed(env, u.text("1-3"))
+    assert "Нельзя удалить все" in env.fake.last("sendMessage")["text"]
+    await feed(env, u.text("2"))
+    await wait_tasks(env)
+    name, content = env.fake.sent_documents[-1]
+    assert name == "doc_dl.pdf"
+    with pymupdf.open(stream=content, filetype="pdf") as doc:
+        assert [p.get_text().strip() for p in doc] == ["FormatBot test page 1", "FormatBot test page 3"]
+
+
+async def test_pdf_merge_collects_files(env, samples, tmp_path):
+    import pymupdf
+
+    u = Updates()
+    await feed(env, u.text("/start"))
+    card = await upload(env, u, samples["pdf"], "P1", "doc.pdf")
+    await feed(env, u.widget(card["_mid"], "tl"))
+    tools = widget_of_type(env, "Инструменты")
+    await feed(env, u.widget(tools["_mid"], "t:mg"))
+    prompt = env.fake.last("sendMessage")
+    assert prompt["reply_markup"]["inline_keyboard"][0][0]["callback_data"] == "c:go"
+    widgets_before = len(sent_widgets(env))
+
+    png = samples["png"].read_bytes()
+    env.fake.files["IMG"] = png
+    await feed(env, u.document("IMG", "logo.png", len(png)))   # wrong kind: skipped
+    assert "не подходит" in env.fake.last("sendMessage")["text"]
+    second = tmp_path / "second.pdf"
+    doc = pymupdf.open()
+    doc.new_page().insert_text((72, 72), "Second file")
+    doc.save(second)
+    data = second.read_bytes()
+    env.fake.files["P2"] = data
+    await feed(env, u.document("P2", "second.pdf", len(data)))
+    assert "Файлов: 2" in env.fake.last("sendMessage")["text"]
+    assert len(sent_widgets(env)) == widgets_before, "collected files must not open file cards"
+
+    await feed(env, u.callback(prompt["_mid"], "c:go"))
+    await wait_tasks(env)
+    name, content = env.fake.sent_documents[-1]
+    assert name == "doc_mg.pdf"
+    with pymupdf.open(stream=content, filetype="pdf") as merged:
+        assert merged.page_count == 4 and merged[3].get_text().strip() == "Second file"
+
+
+async def test_pdf_compress_and_convert_to_docx(env, samples):
+    from docx import Document
+
+    u = Updates()
+    await feed(env, u.text("/start"))
+    card = await upload(env, u, samples["pdf"], "P1", "doc.pdf")
+    await feed(env, u.widget(card["_mid"], "cv"))
+    convert = widget_of_type(env, "Конвертация")
+    assert json.loads(convert["chat_data"])["o"] == ["docx", "txt", "png", "jpg"]
+    await feed(env, u.widget(convert["_mid"], "go:docx"))
+    await wait_tasks(env)
+    name, content = env.fake.sent_documents[-1]
+    assert name == "doc.docx"
+    assert "FormatBot test page 2" in " ".join(p.text for p in Document(io.BytesIO(content)).paragraphs)
+
+    await feed(env, u.widget(convert["_mid"], "go:png"))
+    await wait_tasks(env)
+    name, content = env.fake.sent_documents[-1]
+    assert name == "doc.zip"
+    import zipfile
+    with zipfile.ZipFile(io.BytesIO(content)) as archive:
+        assert archive.namelist() == ["doc_p1.png", "doc_p2.png", "doc_p3.png"]
+
+
+async def test_text_document_card(env, samples):
+    u = Updates()
+    await feed(env, u.text("/start"))
+    card = await upload(env, u, samples["txt"], "T1", "notes.txt")
+    state = json.loads(card["chat_data"])
+    assert state["k"] == "document" and state["a"] == ["cv"]
+    await feed(env, u.widget(card["_mid"], "cv"))
+    convert = widget_of_type(env, "Конвертация")
+    await feed(env, u.widget(convert["_mid"], "go:pdf"))
+    await wait_tasks(env)
+    import pymupdf
+    name, content = env.fake.sent_documents[-1]
+    with pymupdf.open(stream=content, filetype="pdf") as doc:
+        assert name == "notes.pdf" and "Привет, FormatBot!" in doc[0].get_text()
+
+
+async def test_docx_to_pdf_with_libreoffice(env, samples):
+    import pymupdf
+    import pytest
+
+    from tests.conftest import SOFFICE
+
+    if SOFFICE is None:
+        pytest.skip("LibreOffice is not installed")
+    u = Updates()
+    await feed(env, u.text("/start"))
+    card = await upload(env, u, samples["docx"], "D1", "report.docx")
+    assert json.loads(card["chat_data"])["a"] == ["cv", "cz"]
+    await feed(env, u.widget(card["_mid"], "cv"))
+    convert = widget_of_type(env, "Конвертация")
+    assert "pdf" in json.loads(convert["chat_data"])["o"]
+    await feed(env, u.widget(convert["_mid"], "go:pdf"))
+    await wait_tasks(env, timeout=200)
+    name, content = env.fake.sent_documents[-1]
+    with pymupdf.open(stream=content, filetype="pdf") as doc:
+        assert name == "report.pdf" and "FormatBot DOCX sample" in doc[0].get_text()
+    assert not list(env.settings.temp_dir.glob("task_*")), "LibreOffice profile and files must be removed"

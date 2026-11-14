@@ -12,7 +12,7 @@ from typing import Any
 import filetype
 
 from services import image_service
-from utils.validators import normalize_extension
+from utils.validators import ValidationError, check_zip_container, normalize_extension
 
 logger = logging.getLogger(__name__)
 
@@ -192,6 +192,11 @@ def detect_file(path: Path, claimed_name: str | None = None) -> FileInfo:
             info.error = exc.code
     elif kind == KIND_PDF:
         info.meta, info.error = _probe_pdf(path)
+    elif ext in {"docx", "xlsx", "pptx", "odt", "ods", "odp"}:
+        try:
+            check_zip_container(path)
+        except ValidationError:
+            info.error = "unsafe_archive"
     elif kind == KIND_OTHER:
         info.error = "unsupported_type"
     return info

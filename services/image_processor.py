@@ -98,7 +98,8 @@ class ImageProcessor(Processor):
                      [("90", t(lang, "o_90")), ("180", t(lang, "o_180")), ("270", t(lang, "o_270")),
                       ("fh", t(lang, "o_fh")), ("fv", t(lang, "o_fv"))]),
             ToolSpec("gr", t(lang, "t_gr"), "gr"),
-            ToolSpec("pd", t(lang, "t_pd"), "pd"),
+            ToolSpec("pd", t(lang, "t_pd"), "pd",
+                     [("1", t(lang, "o_this")), ("mu", t(lang, "o_many"))], collect_options=frozenset({"mu"})),
             ToolSpec("mt", t(lang, "t_mt"), "mt"),
             ToolSpec("op", t(lang, "t_op"), "op"),
         ]
@@ -128,6 +129,24 @@ class ImageProcessor(Processor):
             raise OperationError("crop_outside")
         return x, y, w, h
 
+    def input_prompt(self, file: FileContext, tool: str, lang: str) -> str | None:
+        width, height = file.meta.get("width", 0), file.meta.get("height", 0)
+        key = {"rs": "in_resize", "cr": "in_crop"}.get(tool)
+        return t(lang, key, w=width, h=height) if key else None
+
+    def parse_text_input(self, file: FileContext, tool: str, text: str) -> dict:
+        width, height = file.meta.get("width", 0), file.meta.get("height", 0)
+        if not width or not height:
+            raise OperationError("bad_params")
+        if tool == "rs":
+            return {"option": "in", "size": self.parse_size_input(text, width, height)}
+        if tool == "cr":
+            return {"option": "in", "box": self.parse_crop_input(text, width, height)}
+        raise OperationError("bad_params")
+
+    def collect_kind(self, tool: str) -> str | None:
+        return "image" if tool == "pd" else None
+
     # ------------------------------------------------------------------ labels
 
     def operation_label(self, file: FileContext, request: OperationRequest, lang: str) -> str:
@@ -139,21 +158,22 @@ class ImageProcessor(Processor):
         tool = next((x for x in self.tools(file, lang) if x.id == request.name), None)
         label = tool.label if tool else request.name
         option = request.params.get("option")
-        if tool and option and option != "in":
+        if tool and option and option not in {"in", "mu", "1"}:
             label += " · " + dict(tool.options).get(option, option)
         return label
 
     # ------------------------------------------------------------------ execution
 
     async def run(self, file: FileContext, request: OperationRequest, source: Path,
-                  workspace: TaskWorkspace, progress: ProgressCallback, lang: str) -> OperationResult:
+                  workspace: TaskWorkspace, progress: ProgressCallback, lang: str,
+                  extra_sources: list[Path]) -> OperationResult:
         try:
-            return await asyncio.to_thread(self._run_sync, file, request, source, workspace, lang)
+            return await asyncio.to_thread(self._run_sync, file, request, source, workspace, lang, extra_sources)
         except img.ImageError as exc:
             raise OperationError(exc.code, str(exc)) from exc
 
     def _run_sync(self, file: FileContext, request: OperationRequest, source: Path,
-                  workspace: TaskWorkspace, lang: str) -> OperationResult:
+                  workspace: TaskWorkspace, lang: str, extra_sources: list[Path]) -> OperationResult:
         ext = file.extension
         if request.category == CATEGORY_CONVERT:
             target = request.name
@@ -174,8 +194,8 @@ class ImageProcessor(Processor):
             name = request.name
             if name == "pd":
                 out = workspace.output_path("pdf")
-                img.images_to_pdf([source], out)
-                return OperationResult(out, "pdf", "PDF")
+                img.images_to_pdf([source, *extra_sources], out)
+                return OperationResult(out, "pdf", f"PDF · {1 + len(extra_sources)}")
             out = workspace.output_path(fmt)
             if name == "rs":
                 size = request.params.get("size")

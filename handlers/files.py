@@ -1,7 +1,8 @@
-"""Receiving files: size check, real type detection, file card."""
+"""Receiving files: size check, real type detection, file card, and collecting files for multi-file tools."""
 from __future__ import annotations
 
 import asyncio
+import html
 import logging
 from dataclasses import dataclass
 
@@ -12,8 +13,10 @@ from aiogram.types import Message
 
 from context import AppContext
 from database import repositories as repo
-from database.models import User
+from database.models import UploadedFile, User
+from keyboards.fallback import collect_kb
 from services.file_detector import FileInfo, detect_file
+from states.file_states import MAX_COLLECTED_FILES, CollectFiles
 from utils.file_manager import TaskWorkspace
 from utils.i18n import t
 from utils.size_formatter import format_size
@@ -63,24 +66,23 @@ def _error_text(info: FileInfo, lang: str) -> str:
         "unsupported_type": t(lang, "file_unknown"),
         "encrypted_pdf": t(lang, "file_encrypted"),
         "image_too_large": t(lang, "file_too_large_image"),
+        "unsafe_archive": t(lang, "err_unsafe_archive"),
     }.get(info.error or "", t(lang, "file_broken"))
 
 
-async def on_file(message: Message, bot: Bot, app: AppContext, db_user: User, state: FSMContext) -> None:
-    await state.clear()
-    lang = db_user.language
-    incoming = extract_file(message)
-    if incoming is None:
-        return
+async def receive_file(message: Message, bot: Bot, app: AppContext, user: User,
+                       incoming: IncomingFile) -> tuple[UploadedFile, list[str]] | None:
+    """Check, download, detect and store an incoming file. Replies to the user on any problem."""
+    lang = user.language
     limit = app.settings.download_limit_bytes
     if incoming.size is not None and incoming.size > limit:
         hint = "" if app.settings.uses_local_api else "\n" + t(lang, "file_too_big_hint")
         await message.answer(t(lang, "file_too_big", size=format_size(incoming.size, lang),
                                limit=format_size(limit, lang)) + hint)
-        return
+        return None
 
     name = sanitize_filename(incoming.name)
-    logger.info("File received: user=%s size=%s", db_user.id, incoming.size)
+    logger.info("File received: user=%s size=%s", user.id, incoming.size)
     status = await message.answer(t(lang, "file_received"))
 
     workspace = TaskWorkspace(app.settings.temp_dir)
@@ -92,11 +94,11 @@ async def on_file(message: Message, bot: Bot, app: AppContext, db_user: User, st
         except (TelegramAPIError, OSError, asyncio.TimeoutError) as exc:
             logger.warning("Download failed: %s", exc)
             await status.edit_text(t(lang, "download_failed"))
-            return
+            return None
         if path.stat().st_size > limit:
             await status.edit_text(t(lang, "file_too_big", size=format_size(path.stat().st_size, lang),
                                      limit=format_size(limit, lang)))
-            return
+            return None
         try:
             info = await asyncio.wait_for(asyncio.to_thread(detect_file, path, name), DETECT_TIMEOUT_SEC)
         except asyncio.TimeoutError:
@@ -106,7 +108,7 @@ async def on_file(message: Message, bot: Bot, app: AppContext, db_user: User, st
 
     if info is None or info.error:
         await status.edit_text(t(lang, "file_broken") if info is None else _error_text(info, lang))
-        return
+        return None
 
     warnings = []
     if info.extension_mismatch:
@@ -117,24 +119,63 @@ async def on_file(message: Message, bot: Bot, app: AppContext, db_user: User, st
 
     async with app.db.session() as session:
         record = await repo.add_uploaded_file(
-            session, user_id=db_user.id, telegram_file_id=incoming.file_id, file_name=name, kind=info.kind,
+            session, user_id=user.id, telegram_file_id=incoming.file_id, file_name=name, kind=info.kind,
             extension=info.extension, mime_type=info.mime_type, size=info.size, meta=info.meta,
         )
+        await session.commit()
+    try:
+        await status.delete()
+    except TelegramAPIError:
+        pass
+    return record, warnings
+
+
+async def on_file(message: Message, bot: Bot, app: AppContext, db_user: User, state: FSMContext) -> None:
+    incoming = extract_file(message)
+    if incoming is None:
+        return
+    if await state.get_state() == CollectFiles.waiting.state:
+        await _collect(message, bot, app, db_user, state, incoming)
+        return
+    await state.clear()
+
+    received = await receive_file(message, bot, app, db_user, incoming)
+    if received is None:
+        return
+    record, warnings = received
+
+    async with app.db.session() as session:
         user = await repo.get_user_by_telegram_id(session, db_user.telegram_id)
         intent = user.pending_intent
         user.pending_intent = None
         await session.commit()
 
-    try:
-        await status.delete()
-    except TelegramAPIError:
-        pass
     await send_screen(bot, app, db_user, message.chat.id, file_screen(db_user, record, " ".join(warnings)))
-
-    if intent and INTENT_KIND.get(intent, info.kind) == info.kind:
+    if intent and INTENT_KIND.get(intent, record.kind) == record.kind:
         screen = screen_for_action(db_user, record, INTENT_TO_ACTION[intent])
         if screen is not None:
             await send_screen(bot, app, db_user, message.chat.id, screen)
+
+
+async def _collect(message: Message, bot: Bot, app: AppContext, user: User, state: FSMContext,
+                   incoming: IncomingFile) -> None:
+    lang = user.language
+    data = await state.get_data()
+    extra: list[int] = list(data.get("extra", []))
+    if len(extra) >= MAX_COLLECTED_FILES:
+        await message.answer(t(lang, "col_limit", n=MAX_COLLECTED_FILES + 1))
+        return
+    received = await receive_file(message, bot, app, user, incoming)
+    if received is None:
+        return
+    record, _ = received
+    if record.kind != data.get("kind"):
+        await message.answer(t(lang, "col_wrong_kind", name=html.escape(record.file_name)))
+        return
+    extra.append(record.id)
+    await state.update_data(extra=extra)
+    await message.answer(t(lang, "col_added", name=html.escape(record.file_name), n=len(extra) + 1),
+                         reply_markup=collect_kb(lang, len(extra) + 1))
 
 
 def build_router() -> Router:

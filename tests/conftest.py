@@ -15,7 +15,23 @@ warnings.filterwarnings("ignore", category=FutureWarning)
 
 from PIL import Image, ImageDraw  # noqa: E402
 
+import services.document_processor  # noqa: E402,F401 - registers PDF/document processors
 import services.image_processor  # noqa: E402,F401 - registers the image processor
+from config import _find_executable  # noqa: E402
+from services.external_tools import set_tools  # noqa: E402
+
+SOFFICE = _find_executable(
+    "SOFFICE_PATH", ["soffice", "libreoffice"],
+    [r"C:\Program Files\LibreOffice\program\soffice.exe", r"E:\Programs\LibreOffice\program\soffice.exe"],
+)
+
+
+@pytest.fixture(autouse=True)
+def _external_tools():
+    from config import ExternalTools
+
+    set_tools(ExternalTools(ffmpeg=None, ffprobe=None, soffice=SOFFICE, ghostscript=None))
+    yield
 
 
 # ----------------------------------------------------------------------------- sample files

@@ -15,8 +15,9 @@ from aiogram.fsm.context import FSMContext
 from context import AppContext
 from database import repositories as repo
 from database.models import UploadedFile, User
+from keyboards.fallback import collect_kb
 from services.operations import OperationError, get_processor
-from states.file_states import ToolInput
+from states.file_states import MAX_COLLECTED_FILES, CollectFiles, ToolInput
 from tasks.worker import start_operation
 from utils.i18n import t, t_map
 from utils.size_formatter import format_size
@@ -125,19 +126,33 @@ async def _tool_action(bot: Bot, app: AppContext, user: User, chat_id: int, reco
                        state: FSMContext | None) -> ActionAnswer:
     lang = user.language
     ctx = file_context(record)
-    request_op, needs_input = _processor(record).parse_tool(ctx, data, lang)
-    if not needs_input:
+    processor = _processor(record)
+    request_op, interaction = processor.parse_tool(ctx, data, lang)
+    if interaction is None:
         return await start_operation(bot, app, user, chat_id, record, request_op)
     if state is None:
         return ActionAnswer(t(lang, "ans_bad"), error=True)
-    await state.set_state(ToolInput.waiting)
-    await state.update_data(file_id=record.id, tool=request_op.name)
-    width, height = ctx.meta.get("width", 0), ctx.meta.get("height", 0)
-    prompt_key = {"rs": "in_resize", "cr": "in_crop"}.get(request_op.name)
-    if prompt_key is None:
-        await state.clear()
+
+    if interaction == "input":
+        prompt = processor.input_prompt(ctx, request_op.name, lang)
+        if prompt is None:
+            return ActionAnswer(t(lang, "ans_bad"), error=True)
+        await state.set_state(ToolInput.waiting)
+        await state.set_data({"file_id": record.id, "tool": request_op.name})
+        await bot.send_message(chat_id, f"<b>{html.escape(ctx.name)}</b>\n{prompt}")
+        return ActionAnswer(t(lang, "ans_input"))
+
+    kind = processor.collect_kind(request_op.name)
+    if kind is None:
         return ActionAnswer(t(lang, "ans_bad"), error=True)
-    await bot.send_message(chat_id, f"<b>{html.escape(ctx.name)}</b>\n" + t(lang, prompt_key, w=width, h=height))
+    prompt = await bot.send_message(
+        chat_id,
+        f"<b>{html.escape(ctx.name)}</b>\n" + t(lang, f"col_start_{kind}", n=MAX_COLLECTED_FILES + 1),
+        reply_markup=collect_kb(lang, 1),
+    )
+    await state.set_state(CollectFiles.waiting)
+    await state.set_data({"file_id": record.id, "tool": request_op.name, "kind": kind, "extra": [],
+                          "option": request_op.params.get("option"), "prompt_id": prompt.message_id})
     return ActionAnswer(t(lang, "ans_input"))
 
 

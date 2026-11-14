@@ -12,11 +12,13 @@ from aiogram.client.telegram import TelegramAPIServer
 from aiogram.enums import ParseMode
 from aiogram.types import BotCommand
 
+import services.document_processor  # noqa: F401 - registers PDF and document processors
 import services.image_processor  # noqa: F401 - registers the image processor
 from api.widget_api import WIDGET_UPDATE_TYPES, WidgetQueryMiddleware
 from config import ConfigError, Settings, load_settings
 from context import AppContext
 from database.database import Database
+from services.external_tools import set_tools
 from handlers import callbacks, files, history, settings as settings_handlers, start, tools
 from handlers.middlewares import UserMiddleware
 from tasks.task_manager import TaskManager
@@ -71,6 +73,7 @@ async def main() -> int:
     logger.info("Starting FormatBot. Max file %s MB, local API: %s, tools: %s",
                 settings.download_limit_bytes // (1024 * 1024), settings.uses_local_api, tools_found)
 
+    set_tools(settings.tools)
     settings.temp_dir.mkdir(parents=True, exist_ok=True)
     cleanup_stale_workspaces(settings.temp_dir, max_age_sec=0)
 
