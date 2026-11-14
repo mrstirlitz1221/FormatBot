@@ -99,7 +99,10 @@ async def start_operation(bot: Bot, app: AppContext, user: User, chat_id: int, r
     if position:
         await view.show(ws.task_state("w", label, queue=position))
     logger.info("Task %s queued: user=%s op=%s kind=%s", task_id, user.id, request.history_type, record.kind)
-    return ws.ActionAnswer(t(lang, "ans_started", id=task_id))
+    warning = processor.operation_warning(ctx, request, lang)
+    if warning:
+        await bot.send_message(chat_id, "ℹ️ " + warning, parse_mode=None)
+    return ws.ActionAnswer(t(lang, "ans_started", id=task_id) + (" · " + warning if warning else ""))
 
 
 class OperationJob:

@@ -127,6 +127,10 @@ class Processor(ABC):
         """Validate typed parameters; returns request params. Raises OperationError."""
         raise OperationError("bad_params")
 
+    def operation_warning(self, file: FileContext, request: OperationRequest, lang: str) -> str | None:
+        """An honest note shown when the task starts (e.g. quality loss)."""
+        return None
+
     def collect_kind(self, tool: str) -> str | None:
         """Kind of files a collecting tool accepts (e.g. 'pdf' for merge)."""
         return None

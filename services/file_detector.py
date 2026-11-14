@@ -11,7 +11,8 @@ from typing import Any
 
 import filetype
 
-from services import image_service
+from services import image_service, media_service
+from services.external_tools import ffprobe_path
 from utils.validators import ValidationError, check_zip_container, normalize_extension
 
 logger = logging.getLogger(__name__)
@@ -192,6 +193,8 @@ def detect_file(path: Path, claimed_name: str | None = None) -> FileInfo:
             info.error = exc.code
     elif kind == KIND_PDF:
         info.meta, info.error = _probe_pdf(path)
+    elif kind in (KIND_AUDIO, KIND_VIDEO):
+        _probe_media(path, info)
     elif ext in {"docx", "xlsx", "pptx", "odt", "ods", "odp"}:
         try:
             check_zip_container(path)
@@ -200,6 +203,33 @@ def detect_file(path: Path, claimed_name: str | None = None) -> FileInfo:
     elif kind == KIND_OTHER:
         info.error = "unsupported_type"
     return info
+
+
+# A container without a video stream is audio (e.g. .mp4/.mov with only sound).
+_AUDIO_ONLY_EXT = {"mp4": "m4a", "mov": "m4a", "mkv": "mka", "webm": "weba", "avi": "wav"}
+
+
+def _probe_media(path: Path, info: FileInfo) -> None:
+    """Real streams, duration and resolution via ffprobe (when FFmpeg is installed)."""
+    ffprobe = ffprobe_path()
+    if not ffprobe:
+        return
+    try:
+        media = media_service.probe(ffprobe, path)
+    except media_service.MediaError as exc:
+        info.error = exc.code
+        return
+    if media.duration > media_service.MAX_DURATION_SEC:
+        info.error = "too_long"
+        return
+    if info.kind == KIND_VIDEO and not media.has_video:
+        info.kind = KIND_AUDIO
+        info.extension = _AUDIO_ONLY_EXT.get(info.extension, info.extension)
+        info.mime_type = "audio/mp4" if info.extension == "m4a" else info.mime_type.replace("video/", "audio/")
+    elif info.kind == KIND_AUDIO and media.has_video and info.extension not in {"mp3", "m4a", "flac"}:
+        # e.g. an .ogg with a Theora stream; mp3/m4a/flac may carry cover art, which is not video
+        info.kind = KIND_VIDEO
+    info.meta = media.meta()
 
 
 def _probe_pdf(path: Path) -> tuple[dict[str, Any], str | None]:

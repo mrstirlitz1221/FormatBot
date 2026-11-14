@@ -74,16 +74,24 @@ TaskManager (семафор, лимит на пользователя, тайм�
   `ToolSpec.collect` / `collect_options` → `CollectFiles` (досылка файлов, кнопки `c:go` / `c:x`,
   `start_operation(..., extras)` скачивает их в `input_1..N`).
 
-## Как добавить тип файла (этап 6)
+## Этап 6 (аудио и видео)
 
-1. `services/media_processor.py` — подкласс `Processor`,
-   `register(...)` в конце модуля, импорт в `bot.py` и `tests/conftest.py`.
-2. Внешние программы — только `asyncio.create_subprocess_exec` со списком аргументов, таймаут, `kill()` при
-   отмене, пути из `settings.tools`; если программы нет — не показывать операции (`convert_targets` → `[]`).
-3. Офисные ZIP-контейнеры перед обработкой — `utils.validators.check_zip_container`.
-4. Прогресс FFmpeg — через колбэк `progress(percent)` (карточка обновляется не чаще раза в 2 с).
-5. Многофайловые операции (Merge PDF, Images → PDF) — FSM-сбор файлов в чате, затем одна задача.
-6. Новые строки — в оба словаря `utils/i18n.py` (тест сверяет ключи). После правки шаблонов — `pytest tests/test_widgets.py`.
+- `services/media_service.py` — ffprobe (`probe`, синхронно, вызывается детектором), `run_ffmpeg` с
+  `-progress pipe:1` (проценты по `out_time_us` / длительности), аудио/видео-конвертации, GIF в два прохода,
+  извлечение аудио и кадров, разбор отрезков времени.
+- `services/media_processor.py` — `AudioProcessor`, `VideoProcessor`. Видео-пресеты: `VIDEO_PRESETS`.
+  Масштабирование ограничивает короткую сторону и не увеличивает; размеры всегда чётные (yuv420p).
+- `services/external_tools.run_process_lines` — построчное чтение stdout с параллельным чтением stderr.
+- Детектор уточняет тип по реальным потокам (MP4 без видео → аудио `m4a`; обложка MP3 не считается видео)
+  и отклоняет файлы длиннее 4 часов.
+- `Processor.operation_warning` — честное предупреждение при старте задачи (потери качества и т.п.).
+
+## Как добавить новый тип файла
+
+1. Подкласс `Processor` в `services/`, `register(...)` в конце модуля, импорт в `bot.py` и `tests/conftest.py`.
+2. Внешние программы — только `run_process` / `run_process_lines` со списком аргументов; пути из
+   `services.external_tools`; если программы нет — не показывать операции.
+3. Новые строки — в оба словаря `utils/i18n.py`. После правки шаблонов — `pytest tests/test_widgets.py`.
 
 ## Известные ограничения
 

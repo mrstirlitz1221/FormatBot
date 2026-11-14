@@ -183,3 +183,20 @@ def test_pdf_and_document_states_fit():
         ]
         for state in states:
             assert len(ws.dump(state).encode()) <= 1024
+
+
+def test_media_states_fit():
+    from services.media_processor import AudioProcessor, VideoProcessor
+
+    video = FileContext("video", "mp4", "очень_длинное_видео_" * 5 + ".mp4", 10_000,
+                        {"width": 1920, "height": 1080, "fps": 60, "duration": 100, "has_audio": True})
+    audio = FileContext("audio", "wav", "звук.wav", 10_000, {"duration": 10, "sample_rate": 44100, "channels": 2})
+    for lang in LANGS:
+        for processor, file in ((VideoProcessor(), video), (AudioProcessor(), audio)):
+            states = [
+                ws.tools_state(file, processor.tools(file, lang)),
+                ws.compress_state(file, processor.compress_spec(file, lang, 75, "bal")),
+                ws.convert_state(file, processor.convert_targets(file), processor.lossy_targets(), 85),
+            ]
+            for state in states:
+                assert len(ws.dump(state).encode()) <= 1024

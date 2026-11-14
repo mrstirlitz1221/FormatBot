@@ -427,3 +427,61 @@ async def test_docx_to_pdf_with_libreoffice(env, samples):
     with pymupdf.open(stream=content, filetype="pdf") as doc:
         assert name == "report.pdf" and "FormatBot DOCX sample" in doc[0].get_text()
     assert not list(env.settings.temp_dir.glob("task_*")), "LibreOffice profile and files must be removed"
+
+
+# ----------------------------------------------------------------------------- stage 6: audio and video
+
+
+async def test_video_compress_flow_with_progress(env, media):
+    u = Updates()
+    await feed(env, u.text("/start"))
+    card = await upload(env, u, media["mp4"], "V1", "clip.mp4")
+    state = json.loads(card["chat_data"])
+    assert state["k"] == "video" and state["r"] == "1280×720" and state["d"] == "0:06"
+    assert state["a"] == ["cv", "cz", "tl"]
+
+    await feed(env, u.widget(card["_mid"], "cz"))
+    compress = widget_of_type(env, "Сжатие")
+    assert [m[0] for m in json.loads(compress["chat_data"])["m"]] == ["sm", "bal", "hq", "cus"]
+    await feed(env, u.widget(compress["_mid"], "go:sm"))
+    await wait_tasks(env, timeout=120)
+
+    edits = [json.loads(p["chat_data"]) for p in env.fake.all("editMessageWidgetData")]
+    assert any(e["s"] == "p" and e.get("p", -1) >= 0 for e in edits), "progress percent must be shown"
+    final = edits[-1]
+    name, content = env.fake.sent_documents[-1]
+    assert name == "clip_compressed.mp4" and final["s"] == "d" and final["b"] == len(content) < final["a"]
+
+
+async def test_voice_message_and_lossy_warning(env, media):
+    import subprocess
+
+    from tests.conftest import FFMPEG
+
+    voice = env.tmp / "voice.ogg"
+    subprocess.run([FFMPEG, "-v", "error", "-y", "-i", str(media["wav"]), "-c:a", "libopus", "-b:a", "32k",
+                    str(voice)], check=True)
+    env.fake.files["VO"] = voice.read_bytes()
+    u = Updates()
+    await feed(env, u.text("/start"))
+    update = u.text("x")
+    message = update["message"]
+    del message["text"]
+    message["voice"] = {"file_id": "VO", "file_unique_id": "uVO", "duration": 5, "file_size": voice.stat().st_size}
+    await feed(env, update)
+    card = sent_widgets(env)[-1]
+    state = json.loads(card["chat_data"])
+    assert state["k"] == "audio" and state["e"] == "OGG" and state["d"] == "0:05"
+
+    wav = media["wav"].read_bytes()
+    env.fake.files["W1"] = wav
+    await feed(env, u.document("W1", "tone.wav", len(wav)))
+    wav_card = widget_of_type(env, "tone.wav")
+    await feed(env, u.widget(wav_card["_mid"], "cv"))
+    convert = widget_of_type(env, "Конвертация")
+    await feed(env, u.widget(convert["_mid"], "go:mp3:85"))
+    answer = widget_answer(env, f"q{u.q}")
+    assert "с потерями" in answer["m"]
+    await wait_tasks(env, timeout=60)
+    name, content = env.fake.sent_documents[-1]
+    assert name == "tone.mp3" and len(content) < len(wav)

@@ -6,6 +6,8 @@ import re
 from pathlib import Path
 
 from services import image_service as img
+from services import media_service as media
+from services.external_tools import ffmpeg_path
 from services.operations import (
     CATEGORY_COMPRESS,
     CATEGORY_CONVERT,
@@ -39,7 +41,10 @@ class ImageProcessor(Processor):
     def convert_targets(self, file: FileContext) -> list[str]:
         if file.extension not in img.readable_formats():
             return []
-        return img.convert_targets(file.extension)
+        targets = img.convert_targets(file.extension)
+        if file.extension == "gif" and file.meta.get("frames", 1) > 1 and ffmpeg_path():
+            targets += ["mp4", "webm"]  # animated GIF -> video
+        return targets
 
     def lossy_targets(self) -> set[str]:
         return set(img.LOSSY_FORMATS)
@@ -167,6 +172,15 @@ class ImageProcessor(Processor):
     async def run(self, file: FileContext, request: OperationRequest, source: Path,
                   workspace: TaskWorkspace, progress: ProgressCallback, lang: str,
                   extra_sources: list[Path]) -> OperationResult:
+        if request.category == CATEGORY_CONVERT and request.name in {"mp4", "webm"}:
+            if request.name not in self.convert_targets(file):
+                raise OperationError("unsupported_target")
+            out = workspace.output_path(request.name)
+            try:
+                await media.gif_to_video(ffmpeg_path(), source, out, request.name, progress)
+            except media.MediaError as exc:
+                raise OperationError(exc.code, str(exc)) from exc
+            return OperationResult(out, request.name, request.name.upper())
         try:
             return await asyncio.to_thread(self._run_sync, file, request, source, workspace, lang, extra_sources)
         except img.ImageError as exc:

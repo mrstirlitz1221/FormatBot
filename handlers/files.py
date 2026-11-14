@@ -67,6 +67,7 @@ def _error_text(info: FileInfo, lang: str) -> str:
         "encrypted_pdf": t(lang, "file_encrypted"),
         "image_too_large": t(lang, "file_too_large_image"),
         "unsafe_archive": t(lang, "err_unsafe_archive"),
+        "too_long": t(lang, "err_too_long"),
     }.get(info.error or "", t(lang, "file_broken"))
 
 

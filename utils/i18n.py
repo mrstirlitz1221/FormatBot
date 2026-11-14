@@ -186,6 +186,20 @@ _RU: dict[str, str] = {
     "err_convert_failed": "Не удалось преобразовать документ.",
     "err_unsafe_archive": "Файл повреждён или содержит подозрительную структуру архива.",
     "err_empty_file": "Файл пуст.",
+    # --- stage 6: audio and video
+    "t_tr": "Обрезать", "t_sr": "Частота дискретизации", "t_ch": "Каналы", "o_mono": "Моно", "o_stereo": "Стерео",
+    "t_ea": "Извлечь аудио", "t_fr": "Извлечь кадры", "t_gf": "В GIF", "t_re": "Разрешение", "t_fp": "Частота кадров",
+    "o_fr_1": "Каждую секунду", "o_fr_5": "Каждые 5 с", "o_fr_10": "10 кадров",
+    "cz_vsm": "Маленький размер", "cz_vbal": "Баланс", "cz_vhq": "Высокое качество",
+    "a_lossy": "с потерями",
+    "warn_lossy": "Формат с потерями: часть звуковой информации будет удалена безвозвратно.",
+    "warn_no_gain": "Формат без потерь не вернёт качество исходного файла и займёт больше места.",
+    "in_trim": "Напишите отрезок, который нужно оставить: <code>0:10-0:45</code> или <code>1:02:03-1:05:00</code>. "
+               "Длительность файла: {d}. /cancel — отмена.",
+    "d_copy": "без перекодирования", "d_frames": "Кадров: {n}", "d_gif_cut": "GIF · первые {s} с · 12 fps",
+    "err_range_outside": "Отрезок выходит за пределы файла.",
+    "err_no_audio": "В видео нет звуковой дорожки.",
+    "err_too_long": "Файл слишком длинный (больше 4 часов).",
 }
 
 _EN: dict[str, str] = {
@@ -357,6 +371,20 @@ _EN: dict[str, str] = {
     "err_convert_failed": "Could not convert the document.",
     "err_unsafe_archive": "The file is damaged or has a suspicious archive structure.",
     "err_empty_file": "The file is empty.",
+    # --- stage 6: audio and video
+    "t_tr": "Trim", "t_sr": "Sample rate", "t_ch": "Channels", "o_mono": "Mono", "o_stereo": "Stereo",
+    "t_ea": "Extract audio", "t_fr": "Extract frames", "t_gf": "To GIF", "t_re": "Resolution", "t_fp": "Frame rate",
+    "o_fr_1": "Every second", "o_fr_5": "Every 5 s", "o_fr_10": "10 frames",
+    "cz_vsm": "Small size", "cz_vbal": "Balanced", "cz_vhq": "High quality",
+    "a_lossy": "lossy",
+    "warn_lossy": "Lossy format: some audio information will be discarded permanently.",
+    "warn_no_gain": "A lossless format will not restore the original quality and will take more space.",
+    "in_trim": "Type the part to keep: <code>0:10-0:45</code> or <code>1:02:03-1:05:00</code>. "
+               "File duration: {d}. /cancel to abort.",
+    "d_copy": "no re-encoding", "d_frames": "Frames: {n}", "d_gif_cut": "GIF · first {s} s · 12 fps",
+    "err_range_outside": "The range is outside the file.",
+    "err_no_audio": "The video has no audio track.",
+    "err_too_long": "The file is too long (over 4 hours).",
 }
 
 _STRINGS = {"ru": _RU, "en": _EN}

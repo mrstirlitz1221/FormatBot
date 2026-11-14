@@ -14,6 +14,7 @@ from aiogram.types import BotCommand
 
 import services.document_processor  # noqa: F401 - registers PDF and document processors
 import services.image_processor  # noqa: F401 - registers the image processor
+import services.media_processor  # noqa: F401 - registers audio and video processors
 from api.widget_api import WIDGET_UPDATE_TYPES, WidgetQueryMiddleware
 from config import ConfigError, Settings, load_settings
 from context import AppContext

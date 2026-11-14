@@ -53,8 +53,7 @@ def _kill_tree(process: asyncio.subprocess.Process) -> None:
         pass
 
 
-async def run_process(args: list[str], timeout: float, cwd: Path | None = None,
-                      env: dict[str, str] | None = None) -> ProcessResult:
+async def _spawn(args: list[str], cwd: Path | None, env: dict[str, str] | None) -> asyncio.subprocess.Process:
     if not isinstance(args, list) or not args or not all(isinstance(a, str) for a in args):
         raise ValueError("arguments must be a non-empty list of strings")
     kwargs: dict = {}
@@ -63,7 +62,7 @@ async def run_process(args: list[str], timeout: float, cwd: Path | None = None,
     else:
         kwargs["start_new_session"] = True
     logger.debug("exec %s", Path(args[0]).name)
-    process = await asyncio.create_subprocess_exec(
+    return await asyncio.create_subprocess_exec(
         *args,
         cwd=str(cwd) if cwd else None,
         env=env,
@@ -72,6 +71,44 @@ async def run_process(args: list[str], timeout: float, cwd: Path | None = None,
         stderr=asyncio.subprocess.PIPE,
         **kwargs,
     )
+
+
+async def run_process_lines(args: list[str], timeout: float, on_line, cwd: Path | None = None) -> ProcessResult:  # noqa: ANN001
+    """Like run_process, but calls ``on_line(str)`` for every stdout line as it arrives
+    (FFmpeg ``-progress pipe:1``). stderr is drained concurrently and kept for diagnostics."""
+    process = await _spawn(args, cwd, None)
+    stderr_chunks: list[bytes] = []
+
+    async def read_stdout() -> None:
+        assert process.stdout is not None
+        async for raw in process.stdout:
+            on_line(raw.decode("utf-8", "replace").strip())
+
+    async def read_stderr() -> None:
+        assert process.stderr is not None
+        size = 0
+        async for raw in process.stderr:
+            stderr_chunks.append(raw)
+            size += len(raw)
+            while size > OUTPUT_LIMIT and stderr_chunks:
+                size -= len(stderr_chunks.pop(0))
+
+    try:
+        await asyncio.wait_for(asyncio.gather(read_stdout(), read_stderr(), process.wait()), timeout=timeout)
+    except asyncio.TimeoutError as exc:
+        _kill_tree(process)
+        await process.wait()
+        logger.warning("%s timed out after %ss", Path(args[0]).name, timeout)
+        raise ToolError("timeout") from exc
+    except asyncio.CancelledError:
+        _kill_tree(process)
+        raise
+    return ProcessResult(process.returncode or 0, b"", b"".join(stderr_chunks))
+
+
+async def run_process(args: list[str], timeout: float, cwd: Path | None = None,
+                      env: dict[str, str] | None = None) -> ProcessResult:
+    process = await _spawn(args, cwd, env)
     try:
         stdout, stderr = await asyncio.wait_for(process.communicate(), timeout=timeout)
     except asyncio.TimeoutError as exc:
